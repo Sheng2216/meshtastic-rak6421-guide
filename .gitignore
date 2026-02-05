@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+*.env
+!.env.example
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo

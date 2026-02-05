@@ -1,0 +1,255 @@
+[
+    {
+        "id": "meshtastic-flow",
+        "type": "tab",
+        "label": "Meshtastic Gateway",
+        "disabled": false,
+        "info": "Meshtastic MQTT to InfluxDB data flow\n\nSubscribes to local MQTT broker for Meshtastic JSON messages,\nparses them, and stores in InfluxDB."
+    },
+    {
+        "id": "mqtt-in-node",
+        "type": "mqtt in",
+        "z": "meshtastic-flow",
+        "name": "MQTT JSON Input",
+        "topic": "msh/2/json/#",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "mqtt-broker-local",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 140,
+        "y": 100,
+        "wires": [
+            [
+                "parse-json-node",
+                "debug-input"
+            ]
+        ]
+    },
+    {
+        "id": "parse-json-node",
+        "type": "function",
+        "z": "meshtastic-flow",
+        "name": "Parse Meshtastic JSON",
+        "func": "// Node ID mapping - modify according to your devices\nconst NODE_MAP = {\n    // Example: add your device IDs here\n    // 12345678: \"gateway\",\n};\n\nfunction getNodeName(fromId) {\n    if (NODE_MAP[fromId]) {\n        return NODE_MAP[fromId];\n    }\n    return \"node_\" + fromId.toString(16);\n}\n\nvar node_id = getNodeName(msg.payload.from);\nvar new_payload = [];\nmsg.valid = true;\n\nif (msg.payload.type === \"telemetry\") {\n    var payload = msg.payload.payload;\n    \n    // Environment data (RAK1906 + LTR390)\n    if (typeof payload.barometric_pressure !== \"undefined\" ||\n        typeof payload.temperature !== \"undefined\" ||\n        typeof payload.relative_humidity !== \"undefined\" ||\n        typeof payload.lux !== \"undefined\" ||\n        typeof payload.uv_lux !== \"undefined\") {\n        \n        var fields = {};\n        if (typeof payload.temperature !== \"undefined\") fields.temperature = payload.temperature;\n        if (typeof payload.relative_humidity !== \"undefined\") fields.humidity = payload.relative_humidity;\n        if (typeof payload.barometric_pressure !== \"undefined\") fields.pressure = payload.barometric_pressure;\n        if (typeof payload.gas_resistance !== \"undefined\") fields.gas_resistance = payload.gas_resistance;\n        if (typeof payload.iaq !== \"undefined\") fields.iaq = payload.iaq;\n        if (typeof payload.lux !== \"undefined\") fields.light = payload.lux;\n        if (typeof payload.uv_lux !== \"undefined\") fields.uv_light = payload.uv_lux;\n        \n        new_payload.push({\n            measurement: node_id + \"_env\",\n            fields: fields,\n            timestamp: new Date().getTime()\n        });\n        msg.payload = new_payload;\n        msg.dataType = \"environment\";\n    }\n    // Device data\n    else if (typeof payload.battery_level !== \"undefined\" ||\n             typeof payload.voltage !== \"undefined\") {\n        \n        var fields = {};\n        if (payload.battery_level > 0) fields.battery_level = payload.battery_level;\n        if (payload.voltage > 0) fields.voltage = payload.voltage;\n        if (typeof payload.channel_utilization !== \"undefined\") fields.channel_utilization = payload.channel_utilization;\n        if (typeof payload.air_util_tx !== \"undefined\") fields.air_util_tx = payload.air_util_tx;\n        if (typeof payload.uptime_seconds !== \"undefined\") fields.uptime = payload.uptime_seconds;\n        \n        if (Object.keys(fields).length > 0) {\n            new_payload.push({\n                measurement: node_id + \"_device\",\n                fields: fields,\n                timestamp: new Date().getTime()\n            });\n            msg.payload = new_payload;\n            msg.dataType = \"device\";\n        } else {\n            msg.valid = false;\n        }\n    }\n    // Host Metrics (meshtasticd specific)\n    else if (typeof payload.freemem_bytes !== \"undefined\") {\n        new_payload.push({\n            measurement: node_id + \"_host\",\n            fields: {\n                uptime: payload.uptime_seconds || 0,\n                freemem: payload.freemem_bytes,\n                diskfree: payload.diskfree1_bytes || 0,\n                load1: (payload.load1 || 0) / 100,\n                load5: (payload.load5 || 0) / 100,\n                load15: (payload.load15 || 0) / 100\n            },\n            timestamp: new Date().getTime()\n        });\n        msg.payload = new_payload;\n        msg.dataType = \"host_metrics\";\n    }\n    else {\n        msg.valid = false;\n    }\n}\nelse if (msg.payload.type === \"position\") {\n    var payload = msg.payload.payload;\n    if (typeof payload.latitude_i !== \"undefined\" &&\n        typeof payload.longitude_i !== \"undefined\") {\n        \n        var fields = {\n            latitude: payload.latitude_i / 10000000,\n            longitude: payload.longitude_i / 10000000,\n            altitude: payload.altitude || 0\n        };\n        \n        // Add additional GPS info\n        if (typeof payload.PDOP !== \"undefined\") fields.pdop = payload.PDOP / 100;\n        if (typeof payload.ground_track !== \"undefined\") fields.ground_track = payload.ground_track / 10000;\n        if (typeof payload.sats_in_view !== \"undefined\") fields.sats_in_view = payload.sats_in_view;\n        if (typeof payload.precision_bits !== \"undefined\") fields.precision_bits = payload.precision_bits;\n        \n        new_payload.push({\n            measurement: node_id + \"_position\",\n            fields: fields,\n            timestamp: new Date().getTime()\n        });\n        msg.payload = new_payload;\n        msg.dataType = \"position\";\n    } else {\n        msg.valid = false;\n    }\n}\nelse {\n    msg.valid = false;\n}\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 100,
+        "wires": [
+            [
+                "switch-valid"
+            ]
+        ]
+    },
+    {
+        "id": "switch-valid",
+        "type": "switch",
+        "z": "meshtastic-flow",
+        "name": "Check Valid",
+        "property": "valid",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 630,
+        "y": 100,
+        "wires": [
+            [
+                "influxdb-out",
+                "debug-output"
+            ],
+            [
+                "debug-invalid"
+            ]
+        ]
+    },
+    {
+        "id": "influxdb-out",
+        "type": "influxdb batch",
+        "z": "meshtastic-flow",
+        "influxdb": "influxdb-local",
+        "precision": "ms",
+        "retentionPolicy": "",
+        "name": "Write to InfluxDB",
+        "database": "",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "meshtastic",
+        "bucket": "meshtastic",
+        "x": 870,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "debug-input",
+        "type": "debug",
+        "z": "meshtastic-flow",
+        "name": "Raw MQTT Input",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 380,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "debug-output",
+        "type": "debug",
+        "z": "meshtastic-flow",
+        "name": "InfluxDB Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "debug-invalid",
+        "type": "debug",
+        "z": "meshtastic-flow",
+        "name": "Invalid/Ignored",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "inject-test",
+        "type": "inject",
+        "z": "meshtastic-flow",
+        "name": "Test Environment Data",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"type\":\"telemetry\",\"from\":12345678,\"payload\":{\"temperature\":25.5,\"relative_humidity\":60.0,\"barometric_pressure\":1013.25,\"gas_resistance\":50000}}",
+        "payloadType": "json",
+        "x": 160,
+        "y": 260,
+        "wires": [
+            [
+                "parse-json-node"
+            ]
+        ]
+    },
+    {
+        "id": "inject-test-device",
+        "type": "inject",
+        "z": "meshtastic-flow",
+        "name": "Test Device Data",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"type\":\"telemetry\",\"from\":12345678,\"payload\":{\"battery_level\":85,\"voltage\":4.1,\"channel_utilization\":5.2,\"air_util_tx\":1.3}}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 320,
+        "wires": [
+            [
+                "parse-json-node"
+            ]
+        ]
+    },
+    {
+        "id": "comment-node",
+        "type": "comment",
+        "z": "meshtastic-flow",
+        "name": "Meshtastic MQTT to InfluxDB",
+        "info": "## Data Flow Description\n\n1. MQTT Input subscribes to `msh/2/json/#` topic\n2. Parse function parses JSON and converts to InfluxDB format\n3. Switch node filters valid data\n4. Valid data is written to InfluxDB\n\n## Configuration Steps\n\n1. Double-click MQTT Broker node, configure connection to localhost:1883\n2. Double-click InfluxDB node, configure connection info\n3. Add your node ID mappings in Parse function\n4. Deploy and test",
+        "x": 170,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "mqtt-broker-local",
+        "type": "mqtt-broker",
+        "name": "Local MQTT",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered-meshtastic",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "influxdb-local",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": "8086",
+        "protocol": "http",
+        "database": "",
+        "name": "Local InfluxDB",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://localhost:8086",
+        "timeout": "10",
+        "rejectUnauthorized": false
+    }
+]
