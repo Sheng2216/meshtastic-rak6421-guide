@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$(dirname "$SCRIPT_DIR")/config"
 
 # Token storage location
-TOKEN_DIR="/etc/meshtasticd"
+TOKEN_DIR="/etc/meshtastic"
 TOKEN_FILE="$TOKEN_DIR/influxdb_token"
 
 # Load credentials from config file (if exists)
@@ -35,37 +35,46 @@ echo "=========================================="
 ARCH=$(dpkg --print-architecture)
 echo "System architecture: $ARCH"
 
-# Check if repository is already configured
-if [ ! -f /etc/apt/sources.list.d/influxdata.list ]; then
-    echo "Adding InfluxDB repository..."
+# Check if InfluxDB repository keyring is already installed
+if ! dpkg -l influxdata-archive-keyring &>/dev/null; then
+    echo "Setting up InfluxDB repository..."
     
-    # Download and verify the GPG key
-    curl --silent --location -O https://repos.influxdata.com/influxdata-archive.key
+    # Download and verify the keyring package
+    echo "Downloading InfluxDB keyring package..."
+    curl --silent --location -O https://repos.influxdata.com/influxdata-archive_compat.key
     
     # Verify the key fingerprint
     echo "Verifying GPG key fingerprint..."
-    if gpg --show-keys --with-fingerprint --with-colons ./influxdata-archive.key 2>&1 | grep -q '^fpr:\+24C975CBA61A024EE1B631787C3D57159FC2F927:$'; then
+    if gpg --show-keys --with-fingerprint --with-colons ./influxdata-archive_compat.key 2>&1 | grep -q '^fpr:\+24C975CBA61A024EE1B631787C3D57159FC2F927:$'; then
         echo "✓ GPG key verification successful"
         
         # Import the key to system
         sudo mkdir -p /etc/apt/keyrings
-        cat influxdata-archive.key | gpg --dearmor | sudo tee /etc/apt/keyrings/influxdata-archive.gpg > /dev/null
+        cat influxdata-archive_compat.key | gpg --dearmor | sudo tee /etc/apt/keyrings/influxdata-archive_compat.gpg > /dev/null
         
-        # Add repository
-        echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' | sudo tee /etc/apt/sources.list.d/influxdata.list
+        # Add temporary repository to install keyring package
+        echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive_compat.gpg] https://repos.influxdata.com/debian stable main' | sudo tee /etc/apt/sources.list.d/influxdata.list
         
-        rm influxdata-archive.key
-        echo "✓ InfluxDB repository added"
+        rm influxdata-archive_compat.key
+        
+        # Update package list and install keyring package
+        echo "Installing InfluxDB keyring package..."
+        sudo apt-get update
+        DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
+            -o Dpkg::Options::="--force-confnew" \
+            influxdata-archive-keyring
+        
+        echo "✓ InfluxDB repository configured via keyring package"
     else
         echo "✗ GPG key verification failed"
-        rm influxdata-archive.key
+        rm influxdata-archive_compat.key
         exit 1
     fi
 else
-    echo "InfluxDB repository already configured"
+    echo "InfluxDB repository keyring already installed"
 fi
 
-# Update package list
+# Update package list to use the official repository configuration
 echo "Updating package list..."
 sudo apt-get update
 
@@ -73,6 +82,7 @@ sudo apt-get update
 echo "Installing InfluxDB and CLI tools..."
 DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
     -o Dpkg::Options::="--force-confnew" \
+    -o Dpkg::Options::="--force-confdef" \
     influxdb2 \
     influxdb2-cli
 
