@@ -25,7 +25,7 @@ echo "=========================================="
 
 # Install dependencies
 echo "Installing dependencies..."
-sudo apt-get install -y apt-transport-https software-properties-common wget
+sudo apt-get install -y apt-transport-https wget gnupg
 
 # Check if repository is already configured
 if [ ! -f /etc/apt/sources.list.d/grafana.list ]; then

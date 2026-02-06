@@ -17,13 +17,13 @@ echo "=============================================="
 echo "Configure Meshtastic Telemetry, Position & MQTT"
 echo "=============================================="
 
-# Check if meshtastic CLI is installed (must run 00-install-meshtastic-python-cli.sh first)
+# Check if meshtastic CLI is installed (required for this script; run 01-install-dependencies.sh first for system setup)
 if ! command -v meshtastic &> /dev/null; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     echo "Meshtastic Python CLI is not installed or not in PATH."
     echo ""
-    echo "Please run the install script first:"
-    echo "  $SCRIPT_DIR/00-install-meshtastic-python-cli.sh"
+    echo "Install the Meshtastic CLI (step 1 is 01-install-dependencies.sh for system deps):"
+    echo "  python3 -m pip install --upgrade \"meshtastic[cli]\" --break-system-packages"
     echo ""
     echo "The path variables may or may not update for the current session when installing."
     echo "After installation, you may need to restart your terminal or run:"

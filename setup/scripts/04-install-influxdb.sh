@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$(dirname "$SCRIPT_DIR")/config"
 
 # Token storage location
-TOKEN_DIR="/etc/meshtastic"
+TOKEN_DIR="/etc/meshtasticd"
 TOKEN_FILE="$TOKEN_DIR/influxdb_token"
 
 # Load credentials from config file (if exists)
@@ -70,10 +70,11 @@ echo "Updating package list..."
 sudo apt-get update
 
 # Install InfluxDB using package defaults (non-interactive, use new configs from package)
-echo "Installing InfluxDB..."
+echo "Installing InfluxDB and CLI tools..."
 DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
     -o Dpkg::Options::="--force-confnew" \
-    influxdb2
+    influxdb2 \
+    influxdb2-cli
 
 # Enable and start service
 echo "Starting InfluxDB service..."
@@ -93,14 +94,24 @@ else
     exit 1
 fi
 
+# Verify CLI tool is installed
+echo "Verifying InfluxDB CLI installation..."
+if ! command -v influx &>/dev/null; then
+    echo "✗ Error: influx CLI tool not found"
+    echo "  This should not happen after installing influxdb2-cli"
+    exit 1
+fi
+echo "✓ InfluxDB CLI tool is available"
+
 echo ""
 echo "=========================================="
 echo "Initialize InfluxDB"
 echo "=========================================="
 
 # Check if already initialized by checking if we can ping
+echo "Testing InfluxDB connection..."
 if influx ping &>/dev/null; then
-    echo "InfluxDB is running"
+    echo "✓ InfluxDB is responding"
     
     # Try to initialize (if not already initialized)
     echo ""
@@ -112,13 +123,24 @@ if influx ping &>/dev/null; then
     
     # Initialize InfluxDB
     # If already initialized, this command will fail but won't affect usage
-    influx setup \
+    SETUP_OUTPUT=$(influx setup \
         --username "$INFLUXDB_USERNAME" \
         --password "$INFLUXDB_PASSWORD" \
         --org "$INFLUXDB_ORG" \
         --bucket "$INFLUXDB_BUCKET" \
         --retention "$INFLUXDB_RETENTION" \
-        --force 2>/dev/null || echo "InfluxDB may already be initialized"
+        --force 2>&1) || true
+    
+    if echo "$SETUP_OUTPUT" | grep -q "has already been set up"; then
+        echo "✓ InfluxDB was already initialized"
+    elif echo "$SETUP_OUTPUT" | grep -q "User"; then
+        echo "✓ InfluxDB initialized successfully"
+    else
+        echo "⚠ Setup output: $SETUP_OUTPUT"
+    fi
+else
+    echo "✗ Error: InfluxDB is not responding to ping"
+    exit 1
 fi
 
 echo ""
@@ -135,20 +157,33 @@ echo "Waiting for InfluxDB CLI configuration to be ready..."
 sleep 5
 
 # Verify CLI can communicate with InfluxDB before creating token
+echo "Verifying CLI configuration..."
 MAX_RETRIES=10
 RETRY_COUNT=0
+CLI_READY=false
+
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if influx auth list &>/dev/null; then
-        echo "✓ InfluxDB CLI is ready"
+        echo "✓ InfluxDB CLI is configured and ready"
+        CLI_READY=true
         break
     fi
     RETRY_COUNT=$((RETRY_COUNT + 1))
-    echo "  Waiting for CLI... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+    echo "  Waiting for CLI configuration... (attempt $RETRY_COUNT/$MAX_RETRIES)"
     sleep 2
 done
 
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "⚠ CLI not responding, continuing anyway..."
+if [ "$CLI_READY" = false ]; then
+    echo "⚠ Warning: CLI not responding after $MAX_RETRIES attempts"
+    echo "  Checking if config file exists..."
+    if [ -f ~/.influxdbv2/configs ]; then
+        echo "  Config file exists at: ~/.influxdbv2/configs"
+    else
+        echo "  Config file missing at: ~/.influxdbv2/configs"
+        echo "  This might indicate the setup command didn't complete successfully"
+    fi
+    echo ""
+    echo "  Attempting to continue with token creation anyway..."
 fi
 
 # Create a token with read/write permissions for both Node-RED and Grafana
@@ -160,19 +195,22 @@ extract_token() {
     local token=""
     
     # Method 1: Look for 86-char base64 token ending with ==
-    token=$(echo "$output" | grep -oE '[A-Za-z0-9_-]{86}==')
+    token=$(echo "$output" | grep -oE '[A-Za-z0-9_-]{86}==' || true)
     
     # Method 2: Look for any token-like string (20+ chars ending with = or ==)
     if [ -z "$token" ]; then
-        token=$(echo "$output" | awk '{for(i=1;i<=NF;i++) if($i ~ /^[A-Za-z0-9_-]{20,}==?$/) print $i}')
+        token=$(echo "$output" | awk '{for(i=1;i<=NF;i++) if($i ~ /^[A-Za-z0-9_-]{20,}==?$/) print $i}' || true)
     fi
     
     echo "$token"
 }
 
 # Check if meshtastic-token already exists
+# Disable error checking temporarily for this non-critical operation
+set +e
 EXISTING_TOKEN=$(influx auth list 2>/dev/null | grep "meshtastic-token" | head -1)
 API_TOKEN=$(extract_token "$EXISTING_TOKEN")
+set -e
 
 if [ -n "$API_TOKEN" ]; then
     echo "✓ Token already exists, using existing token"
@@ -182,6 +220,8 @@ else
     
     MAX_CREATE_RETRIES=3
     CREATE_RETRY=0
+    
+    set +e  # Disable error checking for token creation
     
     while [ $CREATE_RETRY -lt $MAX_CREATE_RETRIES ] && [ -z "$API_TOKEN" ]; do
         CREATE_RETRY=$((CREATE_RETRY + 1))
@@ -197,7 +237,7 @@ else
             --description "meshtastic-token" \
             --read-buckets \
             --write-buckets \
-            --read-orgs 2>&1)
+            --read-orgs 2>&1 || echo "Token creation failed")
         
         # Extract token from create output
         API_TOKEN=$(extract_token "$CREATE_OUTPUT")
@@ -205,10 +245,12 @@ else
         # If extraction failed, try listing tokens to find it
         if [ -z "$API_TOKEN" ]; then
             sleep 1
-            LIST_OUTPUT=$(influx auth list 2>/dev/null | grep "meshtastic-token" | head -1)
+            LIST_OUTPUT=$(influx auth list 2>/dev/null | grep "meshtastic-token" | head -1 || echo "")
             API_TOKEN=$(extract_token "$LIST_OUTPUT")
         fi
     done
+    
+    set -e  # Re-enable error checking
 fi
 
 # Save token to file
@@ -219,10 +261,12 @@ if [ -n "$API_TOKEN" ] && [ ${#API_TOKEN} -gt 20 ]; then
     echo ""
     echo "Token: ${API_TOKEN:0:30}..."
 else
-    echo "✗ Warning: Could not create token automatically"
+    echo "⚠ Warning: Could not create token automatically"
     echo ""
     echo "  You may need to create it manually in InfluxDB UI"
     echo "  Then save it to: $TOKEN_FILE"
+    echo ""
+    echo "  This is non-critical - continuing with installation..."
 fi
 
 echo ""

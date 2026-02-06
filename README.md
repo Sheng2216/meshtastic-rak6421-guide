@@ -87,17 +87,14 @@ This script will install all components in the correct order and takes approxima
 
 If you prefer to install components individually or need more control, follow these steps:
 
-### Step 1: Install Meshtastic Python CLI
+### Step 1: Install Dependencies & Serial Config
 
 ```bash
 cd setup/scripts
-./01-install-meshtastic-python-cli.sh
+./01-install-dependencies.sh
 ```
 
-Verify the installation:
-```bash
-meshtastic --info
-```
+This installs system dependencies (curl, wget, gnupg, apt-transport-https) and configures the serial port for the Meshtastic GPS module (UART enabled, serial console disabled).
 
 ### Step 2: Configure Telemetry & MQTT
 
@@ -282,7 +279,7 @@ setup/
 │   └── mosquitto.conf           # MQTT broker configuration
 ├── scripts/
 │   ├── install-all.sh           # Complete installation script
-│   ├── 01-install-meshtastic-python-cli.sh
+│   ├── 01-install-dependencies.sh
 │   ├── 02-configure-telemetry.sh
 │   ├── 03-install-mosquitto.sh
 │   ├── 04-install-influxdb.sh
