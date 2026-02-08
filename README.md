@@ -2,7 +2,7 @@
 
 > **Note:** This document targets **meshtasticd 2.7.15 only**. RAK1906 and RAK1901 sensors are not yet fully supported in this version. The examples use **RAK12019** as a reference (supported in 2.7.15). The documentation and code will be updated once Meshtastic adds full RAK1906/RAK1901 support (expected soon).
 
-Transform your Raspberry Pi + RAK hardware into a complete environment monitoring station with real-time visualization.
+Transform your Raspberry Pi + RAK 6421 WisMesh Pi HAT + RAK Wisblock sensors into a complete environment monitoring station with real-time visualization.
 
 ![Grafana Dashboard](assets/grafana_dashboard_measurements.png)
 
@@ -29,14 +29,66 @@ This solution uses meshtasticd's built-in MQTT functionality to collect environm
 
 ---
 
+## About RAK6421 WisMesh Pi HAT
+
+![RAK6421 Pi HAT](assets/RAK6421.jpg)
+
+### How WisMesh Pi HAT Fits Into a Meshtastic Raspberry Pi Build
+
+The RAK6421 WisMesh Pi HAT provides a complete integration layer for building a Meshtastic node on Raspberry Pi:
+
+**System Architecture:**
+- **Hardware Layer:** The HAT connects directly to the Pi GPIO header, providing a fixed integration from the Pi to the LoRa radio module and I2C sensors
+- **Software Layer:** meshtasticd runs on Linux and interfaces with supported radios and HATs through standard protocols
+- **Gateway Capabilities:** This setup can function as a full mesh gateway by combining meshtasticd with MQTT, Node-RED, InfluxDB, and Grafana for data automation and visualization
+
+### HAT+ EEPROM Auto-Discovery
+
+The RAK6421 includes an onboard EEPROM that enables meshtasticd to automatically detect and configure the HAT:
+- **Plug-and-Play:** No manual hardware configuration needed
+- **Instant Recognition:** The system identifies the LoRa radio and connected sensors automatically
+- **Zero Configuration Start:** After installing the HAT, you can immediately access the meshtasticd web client or connect via the mobile app
+
+### What This Guide Provides
+
+**Quick Start vs. Full Setup:**
+
+- **Basic Usage (Plug-and-Play):** If you only need basic Meshtastic functionality without environment monitoring, you can use the Raspberry Pi firmware from RAK/Meshtastic. Simply install the HAT, and you're ready to:
+  - Access meshtasticd web client at `https://<Pi-IP>:9443` (make sure it's uncomment in the config.yaml if you are using your own image or the meshtastic mPWRD-OS)
+  - Connect via Meshtastic mobile app to your device on the LAN
+  - Send messages and participate in the mesh network
+  
+- **Advanced Setup (This Guide):** This guide walks you through setting up a complete environment monitoring station with:
+  - Environment telemetry collection (temperature, humidity, pressure, air quality)
+  - GPS location services
+  - Real-time data visualization in Grafana
+  - MQTT integration for automation
+  - Historical data storage in InfluxDB
+
+The goal is to get you up and running with a full-featured monitoring system in the shortest time possible.
+
+---
+
 ## Prerequisites
 
 | Requirement | Details |
 |-------------|---------|
 | **Hardware** | Raspberry Pi 4 |
-| **OS** | RAKPiOS meshtasticd version |
+| **OS** | See [Base image options](#base-image-options) below |
 | **Hat** | RAK6421 Pi-Hat|
 | **Sensors and radio module** | RAK1906 (BME680) + RAK1901 (SHTC3) + RAK13300/RAK13302 |
+
+### Base Image Options
+
+You can run this guide on any Linux image that has meshtasticd installed and working with the RAK6421 HAT. Choose one of the following:
+
+| Option | Description |
+|--------|-------------|
+| **Meshtastic Linux docs** | Follow the [meshtasticd Linux installation](https://meshtastic.org/docs/software/linux/installation/) to install meshtasticd on your preferred distro (e.g. Raspberry Pi OS). You manage the base system yourself. |
+| **mPWRD OS (Armbian)** | Build a custom Armbian image with Meshtastic integration using [mPWRD-userpatches](https://github.com/mPWRD-OS/mPWRD-userpatches) (Armbian + Meshtastic). Use `config-raspberry-pi-64bit.conf` for Raspberry Pi. See the repo for build steps. |
+| **RAKwireless image** | Use the dedicated firmware from RAKwireless (based on [pi-gen](https://github.com/RPi-Distro/pi-gen)), which includes meshtasticd and is ready for the RAK6421. Easiest path if you want a pre-built Pi image. |
+
+This guide’s scripts assume a Linux system with meshtasticd already running; they add MQTT broker, Node-RED, InfluxDB, and Grafana on top.
 
 ---
 
@@ -267,32 +319,6 @@ GRAFANA_ADMIN_USER="admin"
 GRAFANA_ADMIN_PASSWORD="your_secure_password"
 ```
 
----
-
-## File Structure
-
-```
-setup/
-├── README.md                    # This file
-├── config/
-│   ├── credentials.env          # Customizable credentials
-│   └── mosquitto.conf           # MQTT broker configuration
-├── scripts/
-│   ├── install-all.sh           # Complete installation script
-│   ├── 01-install-dependencies.sh
-│   ├── 02-configure-telemetry.sh
-│   ├── 03-install-mosquitto.sh
-│   ├── 04-install-influxdb.sh
-│   ├── 05-install-nodered.sh
-│   ├── 06-install-grafana.sh
-│   ├── check-services.sh        # Service status checker
-│   └── show-token.sh            # Display InfluxDB token
-├── nodered/
-│   ├── flows.json               # Node-RED flow configuration
-│   └── settings.js              # Node-RED settings
-└── grafana/
-    └── dashboard.json           # Grafana dashboard
-```
 
 ---
 
@@ -347,6 +373,7 @@ setup/
    i2cdetect -y 1
    ```
    (Should show address 0x76 or 0x77 for BME680)
+   Should show address 0x76 for RAK1906（BME680）and 0x70 for RAK1901(SHTC3)
 
 2. View meshtasticd logs:
    ```bash
