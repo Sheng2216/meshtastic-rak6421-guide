@@ -6,12 +6,12 @@
 # This script installs all components of the Meshtastic environment
 # monitoring system in the correct order:
 #
-#   1. System Dependencies & Serial Config
+#   1. Configure Serial Port (for GPS module)
 #   2. Telemetry & MQTT Configuration
-#   3. Mosquitto MQTT Broker
-#   4. InfluxDB Time-series Database
-#   5. Node-RED Flow Engine
-#   6. Grafana Visualization
+#   3. Mosquitto MQTT Broker (installs its own deps via apt)
+#   4. InfluxDB Time-series Database (installs curl/gnupg/apt-transport-https)
+#   5. Node-RED Flow Engine (installs curl)
+#   6. Grafana Visualization (installs wget/gnupg/apt-transport-https)
 #
 # Prerequisites:
 #   - Raspberry Pi with 64-bit Raspberry Pi OS
@@ -46,11 +46,11 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo ""
     echo "Options:"
     echo "  --help, -h     Show this help message"
-    echo "  --skip-deps    Skip system dependencies and serial configuration"
+    echo "  --skip-serial  Skip serial port configuration (step 1)"
     echo "  --skip-config  Skip telemetry configuration"
     echo ""
     echo "This script installs all components in order:"
-    echo "  1. System Dependencies & Serial Config"
+    echo "  1. Configure Serial Port (for GPS)"
     echo "  2. Telemetry & MQTT Configuration"
     echo "  3. Mosquitto MQTT Broker"
     echo "  4. InfluxDB Time-series Database"
@@ -63,13 +63,13 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
 fi
 
 # Parse arguments
-SKIP_DEPS=false
+SKIP_SERIAL=false
 SKIP_CONFIG=false
 
 for arg in "$@"; do
     case $arg in
-        --skip-deps)
-            SKIP_DEPS=true
+        --skip-serial)
+            SKIP_SERIAL=true
             ;;
         --skip-config)
             SKIP_CONFIG=true
@@ -124,11 +124,11 @@ run_step() {
     fi
 }
 
-# Step 1: Install system dependencies and configure serial port
-if [ "$SKIP_DEPS" = false ]; then
-    run_step 1 "Install Dependencies & Serial Config" "01-install-dependencies.sh"
+# Step 1: Configure serial port for GPS module
+if [ "$SKIP_SERIAL" = false ]; then
+    run_step 1 "Configure Serial Port" "01-configure-serial.sh"
 else
-    echo -e "${YELLOW}Skipping Step 1: System Dependencies & Serial Config${NC}"
+    echo -e "${YELLOW}Skipping Step 1: Configure Serial Port${NC}"
 fi
 
 # Step 2: Configure Telemetry

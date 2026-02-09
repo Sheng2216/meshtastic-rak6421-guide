@@ -1,6 +1,6 @@
-# Meshtastic Environment Monitoring System with RAK6421
+# Meshtastic Environment Monitoring System with RAK6421 WisMesh Pi HAT
 
-> **Note:** This document targets **meshtasticd 2.7.15 only**. RAK1906 and RAK1901 sensors are not yet fully supported in this version. The examples use **RAK12019** as a reference (supported in 2.7.15). The documentation and code will be updated once Meshtastic adds full RAK1906/RAK1901 support (expected soon).
+> **Note:** This document targets **meshtasticd 2.7.15 only**. RAK1906 and RAK1901 sensors are not yet fully supported in this version. The examples use **RAK12019** as a reference (supported in 2.7.15). The documentation and code will be updated once Meshtasticd adds full RAK1906/RAK1901 support (expected soon).
 
 Transform your Raspberry Pi + RAK 6421 WisMesh Pi HAT + RAK Wisblock sensors into a complete environment monitoring station with real-time visualization.
 
@@ -10,7 +10,7 @@ Transform your Raspberry Pi + RAK 6421 WisMesh Pi HAT + RAK Wisblock sensors int
 
 This solution uses meshtasticd's built-in MQTT functionality to collect environment data (temperature, humidity, pressure, air quality) from RAK sensors and visualize it in Grafana.
 
-### Data Flow
+#### Data Flow
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -33,7 +33,17 @@ This solution uses meshtasticd's built-in MQTT functionality to collect environm
 
 ![RAK6421 Pi HAT](assets/RAK6421.jpg)
 
-### How WisMesh Pi HAT Fits Into a Meshtastic Raspberry Pi Build
+#### Assembly
+To assemble the board on top of the Raspberry Pi or other compatible devices, please follow the steps bellow:
+
+- Assemble first the modules or sensors you are going to use on the Pi HAT, using the screws provided with the modules to secure them in place.
+- If any of the modules require an antenna, plug the antenna before mounting the hat on the Raspberry Pi.
+- Make sure the host device (Raspberry Pi or equivalent) is power off and unplugged to avoid shorts during the assembly process.
+Use spacers to ensure proper alignment and distance between the hat and the main board, secure them with matching screws and/or nuts.
+
+![RAK6421 Pi HAT assembly](assets/rak6421-assembly.png)
+
+#### How WisMesh Pi HAT Fits Into a Meshtastic Raspberry Pi Build
 
 The RAK6421 WisMesh Pi HAT provides a complete integration layer for building a Meshtastic node on Raspberry Pi:
 
@@ -42,22 +52,31 @@ The RAK6421 WisMesh Pi HAT provides a complete integration layer for building a 
 - **Software Layer:** meshtasticd runs on Linux and interfaces with supported radios and HATs through standard protocols
 - **Gateway Capabilities:** This setup can function as a full mesh gateway by combining meshtasticd with MQTT, Node-RED, InfluxDB, and Grafana for data automation and visualization
 
-### HAT+ EEPROM Auto-Discovery
+#### HAT+ EEPROM Auto-Discovery
 
 The RAK6421 includes an onboard EEPROM that enables meshtasticd to automatically detect and configure the HAT:
 - **Plug-and-Play:** No manual hardware configuration needed
 - **Instant Recognition:** The system identifies the LoRa radio and connected sensors automatically
 - **Zero Configuration Start:** After installing the HAT, you can immediately access the meshtasticd web client or connect via the mobile app
 
-### What This Guide Provides
+> **Note:** For the HAT's EEPROM to be recognized by the Raspberry Pi, add the following to `/boot/firmware/config.txt` (or `/boot/config.txt` on some images). This enables the I2C-0 bus used by the EEPROM:
+> ```
+> # Enable I2C-0 bus2216
+> dtparam=i2c_vc=on
+> dtoverlay=i2c0
+> ```
+> A reboot is required after editing the file. If you use the RAKwireless-provided image, no change is needed—the image already includes this configuration.
+
+#### What This Guide Provides
 
 **Quick Start vs. Full Setup:**
 
-- **Basic Usage (Plug-and-Play):** If you only need basic Meshtastic functionality without environment monitoring, you can use the Raspberry Pi firmware from RAK/Meshtastic. Simply install the HAT, and you're ready to:
-  - Access meshtasticd web client at `https://<Pi-IP>:9443` (make sure it's uncomment in the config.yaml if you are using your own image or the meshtastic mPWRD-OS)
-  - Connect via Meshtastic mobile app to your device on the LAN
-  - Send messages and participate in the mesh network
-  
+- **Basic Usage (Plug-and-Play):** If you only need basic Meshtastic functionality and don't require environment monitoring, you can use the Raspberry Pi firmware provided by RAK/Meshtastic. Simply assembly the HAT and the LoRa module, and you're ready to:
+  - Access the meshtasticd web client at `https://<Pi-IP>:9443`.
+    > **Note:** If you are using your own image or the Meshtastic mPWRD-OS, ensure that the following line is uncommented in the `Webserver` section of `/etc/meshtasticd/config.yaml`:  
+    > `Port: 9443  # Port for Webserver & Webservices`
+  - Or, connect via the Meshtastic mobile app to your device on the LAN if you don't need to use the web client.
+  - Send messages and participate in the mesh network.
 - **Advanced Setup (This Guide):** This guide walks you through setting up a complete environment monitoring station with:
   - Environment telemetry collection (temperature, humidity, pressure, air quality)
   - GPS location services
@@ -69,18 +88,55 @@ The goal is to get you up and running with a full-featured monitoring system in 
 
 ---
 
+## Installation
+
+#### Slot Layout
+
+The RAK6421 WisBlock Pi HAT provides **2 IO slots** and **4 sensor slots** for modular expansion:
+
+- **IO Slots (1 & 2):** Use these for LoRa radio modules such as **RAK13300** or **RAK13302** (1W Module). These slots provide the connectivity needed for mesh networking.
+
+- **Sensor Slot A:** Has enough space for long modules. This slot is ideal for placing the **RAK12501** (or RAK12500) GNSS/GPS module.
+
+- **Sensor Slots B, C, D:** Use these for environmental and other sensors. Examples include **RAK1901** (humidity), **RAK1906** (temp/humidity/pressure/air quality), and other compatible WisBlock sensor modules.
+
+> **Note:** The pin layouts for each slot are slightly different. For details on pin definitions and connectors, refer to the [RAK6421 WisBlock Pi HAT Datasheet](https://docs.rakwireless.com/product-categories/wishat/rak6421-wisblock-pi-hat/datasheet/#schematics).
+
+
+#### Meshtasticd-Supported WisBlock Modules
+
+The following WisBlock modules have been tested and work with meshtasticd (as of version 2.7.17). We will update this list as new versions are released:
+
+| RAK Name   | Chip / Component   | Measures              | Status  |
+|------------|--------------------|-----------------------|---------|
+| RAK13000   | Semtech SX1262  | LoRa module            | Yes     |
+| RAK13002   | Semtech SX1262, SKY66122 signal booster | LoRa module           | Yes     |
+| RAK12002   | Micro Crystal RV-3028-C7 | RTC             | Yes     |
+| RAK12003   | Melexis MLX90632   | IR Temperature        | Yes     |
+| RAK12019   | Lite On LTR-390UV-01 | UV sensor           | Yes     |
+| RAK12020   | AMS TSL25911FN     | Ambient light         | Yes     |
+| RAK12034   | BMX160             | 9-axis Accelerometer  | Yes     |
+| RAK12037   | Sensirion SCD30    | CO2                   | PR ongoing |
+| RAK12500   | u-blox ZOE-M8Q     | GNSS GPS Location         | Yes |
+| RAK12501   | Quectel L76K   |  GNSS GPS Location         | Yes |
+| RAK1902    | STMicro LPS22HB    | Barometric Pressure   | Release soon     |
+| RAK1901    | Sensirion SHTC3   | Temp,Humility   | Release soon    |
+| RAK1906    | BME680             | Temmperature, Hmmility, Pressure,VOC gas sensing | Release soon     |
+
+---
+
 ## Prerequisites
 
 | Requirement | Details |
 |-------------|---------|
 | **Hardware** | Raspberry Pi 4 |
 | **OS** | See [Base image options](#base-image-options) below |
-| **Hat** | RAK6421 Pi-Hat|
+| **Hat** | RAK6421 WisMesh Pi HAT|
 | **Sensors and radio module** | RAK1906 (BME680) + RAK1901 (SHTC3) + RAK13300/RAK13302 |
 
-### Base Image Options
+#### Base Image Options
 
-You can run this guide on any Linux image that has meshtasticd installed and working with the RAK6421 HAT. Choose one of the following:
+You can run this guide on any Linux image that has meshtasticd installed and working with the RAK6421 WisMesh Pi HAT. Choose one of the following:
 
 | Option | Description |
 |--------|-------------|
@@ -100,7 +156,7 @@ This guide’s scripts assume a Linux system with meshtasticd already running; t
 
 This verification helps ensure your hardware is properly set up before installing Node-RED, InfluxDB, Grafana, and other software.
 
-### Connect to Your Device
+#### Connect to Your Device
 
 1. Open the Meshtastic web client in a browser from any device on your LAN. The URL is `https://<Pi-IP>:9443`, where `<Pi-IP>` is your Raspberry Pi's IP address (e.g., run `hostname -I` on the Pi to find it). RAKPiOS includes the web client by default.
 
@@ -129,26 +185,41 @@ cd setup/scripts
 ./install-all.sh
 ```
 
-This script will install all components in the correct order and takes approximately 10-20 minutes depends on your network speed.
+This script will install all components in the correct order and takes approximately 10-20 minutes (depending on your network speed). Use `./install-all.sh --skip-serial` to skip serial port configuration if you are not using a GPS module.
 
 > **Tip:** Before running, you can customize credentials in `setup/config/credentials.env`
 
+Edit `config/credentials.env` before running installation scripts:
+
+```bash
+# InfluxDB Configuration
+INFLUXDB_USERNAME="admin"
+INFLUXDB_PASSWORD="your_secure_password"
+INFLUXDB_ORG="meshtastic"
+INFLUXDB_BUCKET="meshtastic"
+
+# Grafana Configuration
+GRAFANA_ADMIN_USER="admin"
+GRAFANA_ADMIN_PASSWORD="your_secure_password"
+```
 ---
 
 ## Step-by-Step Installation
 
 If you prefer to install components individually or need more control, follow these steps:
 
-### Step 1: Install Dependencies & Serial Config
+#### Step 1: Configure Serial Port (Optional)
 
 ```bash
 cd setup/scripts
-./01-install-dependencies.sh
+./01-configure-serial.sh
 ```
 
-This installs system dependencies (curl, wget, gnupg, apt-transport-https) and configures the serial port for the Meshtastic GPS module (UART enabled, serial console disabled).
+This configures the serial port for the Meshtastic GPS module (UART enabled, serial console disabled). A reboot is required for changes to take effect. You can skip this step if you are not using a GPS module.
 
-### Step 2: Configure Telemetry & MQTT
+Each of the following service scripts (Mosquitto, InfluxDB, Node-RED, Grafana) installs its own dependencies when run standalone, so you can run any step independently.
+
+#### Step 2: Configure Telemetry & MQTT
 
 ```bash
 ./02-configure-telemetry.sh
@@ -159,7 +230,7 @@ This script will use the Meshtastic Python CLI to configure:
 - MQTT publishing to local broker
 - JSON format output for easy parsing
 
-### Step 3: Install Mosquitto MQTT Broker
+#### Step 3: Install Mosquitto MQTT Broker
 
 ```bash
 ./03-install-mosquitto.sh
@@ -167,7 +238,7 @@ This script will use the Meshtastic Python CLI to configure:
 
 The MQTT broker receives messages from meshtasticd on port 1883.
 
-### Step 4: Install InfluxDB
+#### Step 4: Install InfluxDB
 
 ```bash
 ./04-install-influxdb.sh
@@ -183,7 +254,7 @@ Default configuration:
 
 > **Note:** Customize these in `config/credentials.env` before installation.
 
-### Step 5: Install Node-RED
+#### Step 5: Install Node-RED
 
 ```bash
 ./05-install-nodered.sh
@@ -191,7 +262,7 @@ Default configuration:
 
 > **Important:** This step takes 20-30 minutes on slower Pi models.
 
-### Step 6: Install Grafana
+#### Step 6: Install Grafana
 
 ```bash
 ./06-install-grafana.sh
@@ -201,7 +272,7 @@ Default configuration:
 
 ## Post-Installation Configuration
 
-### Configure Node-RED InfluxDB Token
+#### Configure Node-RED InfluxDB Token
 
 After installation, you need to configure the InfluxDB token in Node-RED:
 
@@ -228,7 +299,7 @@ After installation, you need to configure the InfluxDB token in Node-RED:
 
 ## Verify Installation
 
-### Check Service Status
+#### Check Service Status
 
 ```bash
 rak@rakpios:~/setup/scripts $ ./check-services.sh 
@@ -280,7 +351,7 @@ InfluxDB:  http://10.2.13.62:8086
 Grafana:   http://10.2.13.62:3000
 ```
 
-### Access URLs
+#### Access URLs
 
 Access these services from any device on your LAN using `http://<Pi-IP>:<port>`, where `<Pi-IP>` is your Raspberry Pi's IP address.
 
@@ -290,7 +361,7 @@ Access these services from any device on your LAN using `http://<Pi-IP>:<port>`,
 | InfluxDB | `http://<Pi-IP>:8086` | admin / meshtastic |
 | Grafana | `http://<Pi-IP>:3000` | admin / admin |
 
-### View Dashboard
+#### View Dashboard
 
 1. Open Grafana at `http://<Pi-IP>:3000`
 2. Login with admin / admin
@@ -299,32 +370,14 @@ Access these services from any device on your LAN using `http://<Pi-IP>:<port>`,
 
 ![Grafana Dashboard](assets/grafana_dashboard.png)
 
----
 
-## Configuration
-
-### Custom Credentials
-
-Edit `config/credentials.env` before running installation scripts:
-
-```bash
-# InfluxDB Configuration
-INFLUXDB_USERNAME="admin"
-INFLUXDB_PASSWORD="your_secure_password"
-INFLUXDB_ORG="meshtastic"
-INFLUXDB_BUCKET="meshtastic"
-
-# Grafana Configuration
-GRAFANA_ADMIN_USER="admin"
-GRAFANA_ADMIN_PASSWORD="your_secure_password"
-```
 
 
 ---
 
 ## Troubleshooting
 
-### No MQTT Messages?
+#### No MQTT Messages?
 
 1. Check if meshtasticd is running:
    ```bash
@@ -341,7 +394,7 @@ GRAFANA_ADMIN_PASSWORD="your_secure_password"
    mosquitto_sub -h <Pi-IP> -t 'msh/#' -v
    ```
 
-### Node-RED Can't Connect to InfluxDB?
+#### Node-RED Can't Connect to InfluxDB?
 
 1. Verify InfluxDB is running:
    ```bash
@@ -352,7 +405,7 @@ GRAFANA_ADMIN_PASSWORD="your_secure_password"
 
 3. Verify organization name matches (default: "meshtastic")
 
-### Grafana Shows No Data?
+#### Grafana Shows No Data?
 
 1. Check data source configuration:
    - Go to **Connections** → **Data Sources** → **InfluxDB**
@@ -366,13 +419,12 @@ GRAFANA_ADMIN_PASSWORD="your_secure_password"
 
 3. Check Node-RED debug output for errors
 
-### Sensor Data Not Updating?
+#### Sensor Data Not Updating?
 
 1. Check sensor connection:
    ```bash
    i2cdetect -y 1
    ```
-   (Should show address 0x76 or 0x77 for BME680)
    Should show address 0x76 for RAK1906（BME680）and 0x70 for RAK1901(SHTC3)
 
 2. View meshtasticd logs:
@@ -380,9 +432,7 @@ GRAFANA_ADMIN_PASSWORD="your_secure_password"
    journalctl -u meshtasticd -f
    ```
 
----
-
-## Service Management
+#### Service Management
 
 ```bash
 # Restart all services

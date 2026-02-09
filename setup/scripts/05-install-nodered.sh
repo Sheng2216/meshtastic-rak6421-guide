@@ -18,6 +18,11 @@ echo "=========================================="
 echo "Install Node-RED"
 echo "=========================================="
 
+# Install dependencies required by Node-RED installer (curl for download script)
+echo "Installing dependencies..."
+sudo apt-get update
+sudo apt-get install -y curl
+
 # Create user directory and copy settings.js BEFORE running installer
 # This prevents the installer from launching interactive configuration
 mkdir -p "$NODERED_USERDIR"
@@ -32,7 +37,6 @@ fi
 # --no-init: Skip interactive settings.js initialization (we use our own)
 echo ""
 echo "Installing Node-RED using official script (installs Node.js + Node-RED)..."
-echo "This may take 20-30 minutes on slower Pi versions - please wait."
 bash <(curl -sL https://github.com/node-red/linux-installers/releases/latest/download/update-nodejs-and-nodered-deb) --confirm-install --confirm-pi --no-init
 
 # Ensure our settings.js is in place (in case installer overwrote it)

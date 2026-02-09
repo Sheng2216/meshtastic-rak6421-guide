@@ -17,12 +17,12 @@ echo "=============================================="
 echo "Configure Meshtastic Telemetry, Position & MQTT"
 echo "=============================================="
 
-# Check if meshtastic CLI is installed (required for this script; run 01-install-dependencies.sh first for system setup)
+# Check if meshtastic CLI is installed (required for this script; run 01-configure-serial.sh first if using GPS)
 if ! command -v meshtastic &> /dev/null; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     echo "Meshtastic Python CLI is not installed or not in PATH."
     echo ""
-    echo "Install the Meshtastic CLI (step 1 is 01-install-dependencies.sh for system deps):"
+    echo "Install the Meshtastic CLI (see README for setup order; 01-configure-serial.sh configures GPS serial):"
     echo "  python3 -m pip install --upgrade \"meshtastic[cli]\" --break-system-packages"
     echo ""
     echo "The path variables may or may not update for the current session when installing."

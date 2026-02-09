@@ -31,6 +31,11 @@ echo "=========================================="
 echo "Install InfluxDB 2.x"
 echo "=========================================="
 
+# Install dependencies required for adding InfluxDB repository (curl, gnupg, apt-transport-https)
+echo "Installing dependencies..."
+sudo apt-get update
+sudo apt-get install -y curl gnupg apt-transport-https
+
 # Detect system architecture
 ARCH=$(dpkg --print-architecture)
 echo "System architecture: $ARCH"
