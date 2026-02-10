@@ -1,6 +1,6 @@
 # Meshtastic Environment Monitoring System with RAK6421 WisMesh Pi HAT
 
-> **Note:** This document targets **meshtasticd 2.7.15 only**. RAK1906 and RAK1901 sensors are not yet fully supported in this version. The examples use **RAK12019** as a reference (supported in 2.7.15). The documentation and code will be updated once Meshtasticd adds full RAK1906/RAK1901 support (expected soon).
+> **Note:** This document targets **meshtasticd 2.7.15 only**. RAK1906 and RAK1901 sensors are not yet fully supported in this version. Please run `sudo cp /etc/meshtasticd/available.d/lora-RAK6421-13300-slot1.yaml /etc/meshtasticd/config.d/` before everything. The examples use **RAK12019** as a reference (supported in 2.7.15). This documentation and code will be updated once Meshtasticd adds full RAK1906/RAK1901 support (expected soon).
 
 Transform your Raspberry Pi + RAK 6421 WisMesh Pi HAT + RAK Wisblock sensors into a complete environment monitoring station with real-time visualization.
 
@@ -185,7 +185,7 @@ cd setup/scripts
 ./install-all.sh
 ```
 
-This script will install all components in the correct order and takes approximately 10-20 minutes (depending on your network speed). Use `./install-all.sh --skip-serial` to skip serial port configuration if you are not using a GPS module.
+This script will install all components in the correct order and takes approximately 20-30 minutes (depending on your network speed). Use `./install-all.sh --skip-serial` to skip serial port configuration if you are not using a GPS module.
 
 > **Tip:** Before running, you can customize credentials in `setup/config/credentials.env`
 
@@ -215,28 +215,46 @@ cd setup/scripts
 ./01-configure-serial.sh
 ```
 
-This configures the serial port for the Meshtastic GPS module (UART enabled, serial console disabled). A reboot is required for changes to take effect. You can skip this step if you are not using a GPS module.
+This configures the serial port for the Meshtastic GPS module (UART enabled, serial console disabled) and also updates `/etc/meshtasticd/config.yaml` by **uncommenting** common required lines (only if they are currently commented), including:
+- `GPS.SerialPath: /dev/ttyS0`
+- `I2C.I2CDevice: /dev/i2c-1`
+- `Webserver.Port: 9443`
+
+A reboot is required for changes to take effect.
+
+If you'd rather make these edits yourself, see [`config.yaml`](./config.yaml) in this repository for an example configuration.
 
 Each of the following service scripts (Mosquitto, InfluxDB, Node-RED, Grafana) installs its own dependencies when run standalone, so you can run any step independently.
 
-#### Step 2: Configure Telemetry & MQTT
+#### Step 2: Install Mosquitto MQTT Broker
 
 ```bash
-./02-configure-telemetry.sh
+./02-install-mosquitto.sh
+```
+
+The MQTT broker receives messages from meshtasticd on port 1883.
+
+> **Note:** Install the MQTT broker first before configuring telemetry settings. The Meshtastic device needs a working MQTT broker connection to successfully apply MQTT-related configurations.
+
+#### Step 3: Configure Telemetry & MQTT
+
+```bash
+./03-configure-telemetry.sh
 ```
 
 This script will use the Meshtastic Python CLI to configure:
 - Environment telemetry (sensor data collection)
-- MQTT publishing to local broker
-- JSON format output for easy parsing
+- GPS/position mode and broadcast settings
+- MQTT: enabled, broker address (default `localhost`), JSON output enabled
+- Channel 0 uplink enabled (required for MQTT publishing)
 
-#### Step 3: Install Mosquitto MQTT Broker
+> **Important:** Before running this script, ensure your MQTT broker is running and accessible. The script will configure MQTT settings on your Meshtastic device, which requires a working MQTT connection. If you use a remote MQTT broker instead of the local one from Step 2, edit the script to set the correct MQTT address, or configure it manually as described below.
 
-```bash
-./03-install-mosquitto.sh
-```
-
-The MQTT broker receives messages from meshtasticd on port 1883.
+**If you configure manually** (via the Meshtastic web client, mobile app, or Python CLI instead of this script), you must enable the same options:
+- **MQTT:** enable MQTT, set the broker address (e.g. `localhost` or your remote broker), enable JSON packets
+- **Channel 0:** enable uplink for the primary channel (e.g. with the CLI: `meshtastic --ch-set uplink_enabled true --ch-index 0`)
+- **Telemetry:** enable environment measurement and set update interval as needed
+- **Position:** set GPS mode and position broadcast options as needed 
 
 #### Step 4: Install InfluxDB
 

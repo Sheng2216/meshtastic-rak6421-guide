@@ -86,7 +86,7 @@ GRAFANA_DIR="$(dirname "$SCRIPT_DIR")/grafana"
 # Get InfluxDB token
 echo "Getting InfluxDB API Token..."
 
-TOKEN_FILE="/etc/meshtastic/influxdb_token"
+TOKEN_FILE="/etc/meshtasticd/influxdb_token"
 INFLUXDB_TOKEN=""
 
 # Method 1: Read from token file (created by 04-install-influxdb.sh)

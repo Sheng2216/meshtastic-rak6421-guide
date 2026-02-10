@@ -1,7 +1,7 @@
 #!/bin/bash
 # Display InfluxDB token for manual configuration
 
-TOKEN_FILE="/etc/meshtastic/influxdb_token"
+TOKEN_FILE="/etc/meshtasticd/influxdb_token"
 
 echo "=========================================="
 echo "InfluxDB API Token"
@@ -17,7 +17,7 @@ if [ -f "$TOKEN_FILE" ]; then
     echo "=========================================="
     echo ""
     echo "Configure Node-RED:"
-    echo "  1. Open http://localhost:1880"
+    echo "  1. Open http://<Pi-IP>:1880"
     echo "  2. Double-click 'Write to InfluxDB' node"
     echo "  3. Click pencil icon next to 'Local InfluxDB'"
     echo "  4. Paste the token above into 'Token' field"

@@ -7,8 +7,8 @@
 # monitoring system in the correct order:
 #
 #   1. Configure Serial Port (for GPS module)
-#   2. Telemetry & MQTT Configuration
-#   3. Mosquitto MQTT Broker (installs its own deps via apt)
+#   2. Mosquitto MQTT Broker (installs its own deps via apt)
+#   3. Telemetry & MQTT Configuration
 #   4. InfluxDB Time-series Database (installs curl/gnupg/apt-transport-https)
 #   5. Node-RED Flow Engine (installs curl)
 #   6. Grafana Visualization (installs wget/gnupg/apt-transport-https)
@@ -51,8 +51,8 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo ""
     echo "This script installs all components in order:"
     echo "  1. Configure Serial Port (for GPS)"
-    echo "  2. Telemetry & MQTT Configuration"
-    echo "  3. Mosquitto MQTT Broker"
+    echo "  2. Mosquitto MQTT Broker"
+    echo "  3. Telemetry & MQTT Configuration"
     echo "  4. InfluxDB Time-series Database"
     echo "  5. Node-RED Flow Engine"
     echo "  6. Grafana Visualization"
@@ -93,8 +93,7 @@ fi
 echo ""
 
 # Estimated time
-echo "Estimated installation time: 30-45 minutes"
-echo "(Node-RED installation takes the longest on slower Pi models)"
+echo "Estimated installation time: 20-30 minutes"
 echo ""
 read -p "Press Enter to start installation, or Ctrl+C to cancel..."
 echo ""
@@ -131,15 +130,15 @@ else
     echo -e "${YELLOW}Skipping Step 1: Configure Serial Port${NC}"
 fi
 
-# Step 2: Configure Telemetry
-if [ "$SKIP_CONFIG" = false ]; then
-    run_step 2 "Configure Telemetry & MQTT" "02-configure-telemetry.sh"
-else
-    echo -e "${YELLOW}Skipping Step 2: Telemetry Configuration${NC}"
-fi
+# Step 2: Install Mosquitto
+run_step 2 "Install Mosquitto MQTT Broker" "02-install-mosquitto.sh"
 
-# Step 3: Install Mosquitto
-run_step 3 "Install Mosquitto MQTT Broker" "03-install-mosquitto.sh"
+# Step 3: Configure Telemetry
+if [ "$SKIP_CONFIG" = false ]; then
+    run_step 3 "Configure Telemetry & MQTT" "03-configure-telemetry.sh"
+else
+    echo -e "${YELLOW}Skipping Step 3: Telemetry Configuration${NC}"
+fi
 
 # Step 4: Install InfluxDB
 run_step 4 "Install InfluxDB" "04-install-influxdb.sh"
@@ -180,7 +179,7 @@ echo "  1. Get the token:"
 echo "     ./show-token.sh"
 echo ""
 echo "  2. Configure Node-RED:"
-echo "     - Open http://localhost:1880"
+echo "     - Open http://<Pi-IP>:1880"
 echo "     - Double-click 'Write to InfluxDB' node"
 echo "     - Click pencil icon next to 'Local InfluxDB'"
 echo "     - Paste the token into 'Token' field"

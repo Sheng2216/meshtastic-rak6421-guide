@@ -63,6 +63,6 @@ echo "=========================================="
 echo "Next Step"
 echo "=========================================="
 echo ""
-echo "  Run: ./04-install-influxdb.sh"
+echo "  Run: ./03-configure-telemetry.sh"
 echo ""
 
