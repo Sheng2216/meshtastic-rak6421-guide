@@ -35,10 +35,26 @@ if [ -f "$CONFIG_YAML" ]; then
     sudo sed -i 's/^#  I2CDevice: \/dev\/i2c-1/  I2CDevice: \/dev\/i2c-1/' "$CONFIG_YAML"
     changed_items+=( "I2CDevice" )
   fi
-  # GPS serial path (ttyS0 = primary UART on Pi)
-  if grep -q '^#  SerialPath: /dev/ttyS0' "$CONFIG_YAML"; then
-    sudo sed -i 's/^#  SerialPath: \/dev\/ttyS0/  SerialPath: \/dev\/ttyS0/' "$CONFIG_YAML"
-    changed_items+=( "SerialPath" )
+  # GPS serial path - detect Raspberry Pi version to use correct device
+  # Pi 5 uses /dev/ttyAMA0, Pi 4 and earlier use /dev/ttyS0
+  PI_MODEL=""
+  SERIAL_DEVICE=""
+  if [ -f /sys/firmware/devicetree/base/model ]; then
+    PI_MODEL=$(cat /sys/firmware/devicetree/base/model)
+    if echo "$PI_MODEL" | grep -qi "Raspberry Pi 5"; then
+      SERIAL_DEVICE="/dev/ttyAMA0"
+    else
+      SERIAL_DEVICE="/dev/ttyS0"
+    fi
+  else
+    # Fallback to Pi 4 default if detection fails
+    SERIAL_DEVICE="/dev/ttyS0"
+  fi
+  
+  # Check if the line is commented and uncomment/update it
+  if grep -q '^#  SerialPath: /dev/tty' "$CONFIG_YAML"; then
+    sudo sed -i "s|^#  SerialPath: /dev/tty[A-Z0-9]*|  SerialPath: ${SERIAL_DEVICE}|" "$CONFIG_YAML"
+    changed_items+=( "SerialPath (${SERIAL_DEVICE})" )
   fi
   # Webserver port
   if grep -q '^#  Port: 9443' "$CONFIG_YAML"; then
